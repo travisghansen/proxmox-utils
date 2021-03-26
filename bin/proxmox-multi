@@ -1,0 +1,58 @@
+#!/bin/bash
+
+#set -e
+#set -x
+
+BASE_CMD=$(basename ${0})
+PM_CMD=${BASE_CMD%-multi}
+
+VMIDS_RAW="${1}"
+shift
+
+CMD_TEMPLATE=( "${PM_CMD}" "$@" )
+
+usage(){
+  echo "usage: ${BASE_CMD} <VMIDS> <COMMAND> [ARGS] [OPTIONS]"
+  echo "  <VMIDS> is a comma-separated list of elements and/or ranges"
+  echo "    ie: 100,101,105"
+  echo "    ie: 100,103:110,112"
+  echo ""
+  echo "  the string literal {vmid} should be used in place of a static vmid"
+  echo ""
+  echo "  example: ${BASE_CMD} 100,103:105 showcmd {vmid} --pretty"
+}
+
+main(){
+  IFS=','
+  for VMID_ELEMENT in `echo "${VMIDS_RAW}"`;do
+    if [[ "${VMID_ELEMENT}" =~ ":" ]];then
+      START=$(echo "${VMID_ELEMENT}" | cut -d ":" -f1)
+      END=$(echo "${VMID_ELEMENT}" | cut -d ":" -f2)
+      VMIDS=$(eval "echo {${START}..${END}}")
+    else
+      VMIDS="${VMID_ELEMENT}"
+    fi
+
+    IFS=" "
+    for VMID in ${VMIDS};do
+      T=( "${CMD_TEMPLATE[@]}" )
+      total=${#T[*]}
+      for (( i=0; i<=$(( $total -1 )); i++ ))
+      do
+        if [[ "${T[$i]}" =~ "{vmid}" ]];then
+          T[$i]=$(echo -n "${T[$i]}" | sed "s/{vmid}/${VMID}/g")
+        fi
+      done
+
+     "${T[@]}"
+    done
+  done
+}
+
+
+if [ "$#" -lt 2 ]; then
+  usage
+  exit 1
+fi
+
+main
